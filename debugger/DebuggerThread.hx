@@ -252,6 +252,9 @@ class DebuggerThread
 
                 case GetStructured(unsafe, expression):
                     emit(this.getStructured(unsafe, expression));
+
+                case GetStructuredNoDeep(unsafe, expression):
+                    emit(this.getStructured(unsafe, expression, true));
                 }
             }
         }
@@ -1072,7 +1075,7 @@ class DebuggerThread
         }
     }
     
-    private function getStructured(unsafe : Bool, expression : String) : Message
+    private function getStructured(unsafe : Bool, expression : String, elided : Bool = false) : Message
     {
         mStateMutex.acquire();
         
@@ -1504,6 +1507,7 @@ private class TypeHelpers
             return Single(getStructuredValueType(value), Std.string(value));
 
         case TEnum(e):
+            // TODO: "unpack" enum parameters...
             return Single(getStructuredValueType(value), Std.string(value));
 
         case TObject:
@@ -1591,7 +1595,9 @@ private class TypeHelpers
             // Don't allow a failed access to stop processing for the whole
             // structure.
             try {
-                structuredValue = getStructuredValue(Reflect.field(v, name),
+                var property = Reflect.getProperty(v, name);
+                if (property == null) property = Reflect.field(v, name);
+                structuredValue = getStructuredValue(property,
                                         true,
                                         dottedExpression);
             }

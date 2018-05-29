@@ -160,6 +160,10 @@ enum Command
     GetStructured(unsafe : Bool, expression : String);
     // Response: Structured, ErrorCurrentThreadNotStopped,
     // ErrorEvaluatingExpression
+
+    GetStructuredNoDeep(unsafe : Bool, expression : String);
+    // Response: Structured, ErrorCurrentThreadNotStopped,
+    // ErrorEvaluatingExpression
 }
 
 /**
