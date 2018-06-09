@@ -431,10 +431,34 @@ class DebuggerThread
 
     private function setCurrentThread(number: Int) : Message
     {
+        var threadInfo = Debugger.getThreadInfo(number, true);
+        if (threadInfo != null) {
+            mStateMutex.acquire();
+            mCurrentThreadNumber = number;
+            mCurrentThreadInfo = null;
+            mStateMutex.release();
+            if (threadInfo.status == ThreadInfo.STATUS_RUNNING) {
+                if (threadInfo.stack.length == 0) {
+                    return OK;
+                }
+            }
+            var frameNumber = threadInfo.stack.length - 1;
+            var frame = threadInfo.stack[frameNumber];
+            return ThreadLocation(number, frameNumber, frame.className,
+                                    frame.functionName, frame.fileName,
+                                    frame.lineNumber);
+        }
+        
+        //getCurrentThreadInfoLocked()
+        /*
         var threadInfos = Debugger.getThreadInfos();
-
+        trace('setCurrentThread: $number');
+        trace()
         for (ti in threadInfos) {
+            trace('TI.number: ${ti.number} == $number');
+            trace('result: ${ti.number == number}');
             if (ti.number == number) {
+                
                 mStateMutex.acquire();
                 mCurrentThreadNumber = number;
                 mCurrentThreadInfo = null;
@@ -451,6 +475,7 @@ class DebuggerThread
                                       frame.lineNumber);
             }
         }
+        */
 
         return ErrorNoSuchThread(number);
     }
@@ -1092,7 +1117,7 @@ class DebuggerThread
             mStateMutex.release();
 
             return Message.Structured(TypeHelpers.getStructuredValue
-                                      (value, false, expression));
+                                      (value, elided, expression));
         }
         catch (e : Dynamic) {
             mStateMutex.release();
@@ -1108,7 +1133,7 @@ class DebuggerThread
             }
         }
     }
-
+    
     private function getBreakpointIds(first : Int, last : Int)
         : Iterator<Int>
     {
@@ -1415,7 +1440,7 @@ private class TypeHelpers
         return ret + indent + "}";
     }
 
-    public static function getStructuredValueType(value : Dynamic)
+    public static function getStructuredValueType(value : Dynamic, elided : Bool = false)
         : StructuredValueType
     {
         switch (Type.typeof(value)) {
@@ -1436,16 +1461,19 @@ private class TypeHelpers
                 return TypeClass(getClassName(cast value));
             }
             var list : StructuredValueTypeList = Terminator;
-            if (value != null) {
-                var arr = [ ];
-                for (f in Reflect.fields(value)) {
-                    arr.push(f);
-                }
-                var i = arr.length - 1;
-                while (i >= 0) {
-                    list = _Type(getStructuredValueType
-                                 (Reflect.field(value, arr[i])), list);
-                    i -= 1;
+            if (!elided)
+            {
+                if (value != null) {
+                    var arr = [ ];
+                    for (f in Reflect.fields(value)) {
+                        arr.push(f);
+                    }
+                    var i = arr.length - 1;
+                    while (i >= 0) {
+                        list = _Type(getStructuredValueType
+                                    (Reflect.field(value, arr[i])), list);
+                        i -= 1;
+                    }
                 }
             }
             return TypeAnonymous(list);
@@ -1460,7 +1488,9 @@ private class TypeHelpers
             return TypeString;
 
         case TClass(Array):
-            return TypeArray;
+            var arr = cast(value, Array<Dynamic>);
+            var length = (arr != null) ? arr.length : 0;
+            return TypeArray(length);
 
         case TClass(c):
             return TypeInstance(getClassName(c));
@@ -1514,7 +1544,7 @@ private class TypeHelpers
             var klass = Type.resolveClass(Std.string(value));
             if (klass != null) {
                 if (elideArraysAndObjects) {
-                    return Single(getStructuredValueType(value),
+                    return Single(getStructuredValueType(value, true),
                                   Std.string(value));
                 }
                 var list : StructuredValueList = Terminator;
@@ -1540,7 +1570,7 @@ private class TypeHelpers
                 return List(Class, list);
             }
             if (elideArraysAndObjects) {
-                return Elided(getStructuredValueType(value), expression);
+                return Elided(getStructuredValueType(value, true), expression);
             }
             return List(Anonymous, 
                         getStructuredValueList(value, expression));
@@ -1550,7 +1580,9 @@ private class TypeHelpers
             
         case TClass(Array):
             if (elideArraysAndObjects) {
-                return Elided(TypeArray, expression);
+                var arr = cast(value, Array<Dynamic>);
+                var length = (arr != null) ? arr.length : 0;
+                return Elided(TypeArray(length), expression);
             }
             var list : StructuredValueList = Terminator;
             var arr = cast(value, Array<Dynamic>);
@@ -1568,7 +1600,7 @@ private class TypeHelpers
 
         case TClass(c):
             if (elideArraysAndObjects) {
-                return Elided(getStructuredValueType(value), expression);
+                return Elided(getStructuredValueType(value, true), expression);
             }
             return List(Instance(getClassName(c)),
                         getStructuredValueList(value, expression));

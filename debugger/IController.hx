@@ -281,7 +281,7 @@ enum StructuredValueType
     TypeAnonymous(elements : StructuredValueTypeList);
     TypeClass(className : String);
     TypeFunction;
-    TypeArray;
+    TypeArray(length : Int);
 }
 
 
